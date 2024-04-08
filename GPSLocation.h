@@ -1,7 +1,4 @@
 #pragma once
-
-#include <Arduino.h>
-
 #include <memory>
 
 class GPSLocation {
@@ -10,8 +7,9 @@ class GPSLocation {
       public:
         #pragma pack(push, 1)
         struct NetworkView {
-          int32_t n;
-          int32_t E;
+          int32_t digits;
+          int16_t exponent;
+          int8_t negative;
         };
         #pragma pack(pop)
         
@@ -22,9 +20,9 @@ class GPSLocation {
           Unpack(view);
         }
 
-        Float32& operator = (const Float32& rhs) { n = rhs.n; }
+        Float32& operator = (const Float32& rhs) { n = rhs.n; return *this; }
 
-        Float32& operator = (const float& rhs) { n = rhs; }
+        Float32& operator = (const float& rhs) { n = rhs; return *this; }
 
         operator float() const { return n; }
 
@@ -51,9 +49,9 @@ class GPSLocation {
           Unpack(view);
         }
 
-        Int32& operator = (const Int32& rhs) { n = rhs.n; }
+        Int32& operator = (const Int32& rhs) { n = rhs.n; return *this; }
 
-        Int32& operator = (const int32_t& rhs) { n = rhs; }
+        Int32& operator = (const int32_t& rhs) { n = rhs; return *this; }
 
         operator int32_t() const { return n; }
 

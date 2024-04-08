@@ -1,10 +1,14 @@
-#include <LoRa.h>
+#include <memory>
 
-#include <Arduino_MKRGPS.h>
+#include <LoRa.h>
+#include <TinyGPS++.h>
 
 #include "GPSLocation.h"
 
-#include <memory>
+static constexpr uint32_t GPSBaud = 9600;
+
+// The TinyGPS++ object
+TinyGPSPlus gps;
 
 void setup() {
   Serial.begin(9600);
@@ -13,7 +17,7 @@ void setup() {
 
   Serial.println("LoRa GPS transmitter");
 
-  uint32_t LoRaFreq = 915E6;
+  uint32_t LoRaFreq = 433E6;
 
   if(!LoRa.begin(LoRaFreq)) {
     Serial.print("Failed to initialize LoRa @ ");
@@ -27,45 +31,43 @@ void setup() {
     Serial.println("Hz");
   }
 
-  if(!GPS.begin()) {
-    Serial.println("Failed to initialize GPS!");
-    while(true);
-  }
-  else {
-    Serial.println("Initialized GPS");
-    Serial.println("Placing GPS module in standby mode...");
-    GPS.standby();
-    Serial.println("GPS asleep");
-    Serial.println();
-  }
-
+  Serial1.begin(GPSBaud);
 }
 
-GPSLocation GetLocationStandby() {
-  Serial.println("  Wake GPS module from standby...");
-  GPS.wakeup();
-  while (!GPS.available());
-  Serial.println("  GPS awoken");
-  
+GPSLocation GetLocation() {
+  bool locationUpdated = false;
+  bool altitudeUpdated = false;
+  bool satellitesUpdated = false;
+
   GPSLocation location;
-  Serial.println("  Retrieve GPS data...");
-  location.latitude      = GPS.latitude();
-  location.longitude     = GPS.longitude();
-  location.altitude      = GPS.altitude();
-  location.numSatellites = GPS.satellites();
-  Serial.println("  GPS data retrieved");
-
-  Serial.println("  Placing GPS module back in standby mode...");
-  GPS.standby();
-  Serial.println("  GPS asleep");
-}
-
-int send_location_lora(GPSLocation location) {
-
+  while ( Serial1.available() > 0 
+           && ! (    locationUpdated
+                  && altitudeUpdated
+                  && satellitesUpdated ) ) {
+    gps.encode(Serial1.read());
+    if (gps.location.isUpdated()) {
+      location.latitude  = gps.location.lat();
+      location.longitude = gps.location.lng();
+      locationUpdated = true;
+      Serial.println("  location updated");
+    }
+    if (gps.altitude.isUpdated()) {
+      location.altitude = gps.altitude.meters();
+      altitudeUpdated = true;
+      Serial.println("  altitude updated");
+    }
+    if (gps.satellites.isUpdated()) {
+      location.numSatellites = gps.satellites.value();
+      satellitesUpdated = true;
+      Serial.println("  satellites updated");
+    }    
+  }
+ 
+  return location;
 }
 
 void loop() {
-  GPSLocation location = GetLocationStandby();
+  GPSLocation location = GetLocation();
 
   // print GPS values
   Serial.println();
@@ -75,8 +77,8 @@ void loop() {
   Serial.print(location.longitude, 7);
   Serial.println("°");
 
-  Serial.print("Altitude: ");
-  Serial.print(location.altitude);
+  Serial.print("Altitude (meters): ");
+  Serial.print(location.altitude, 7);
   Serial.println("m");
 
   Serial.print("Number of satellites: ");

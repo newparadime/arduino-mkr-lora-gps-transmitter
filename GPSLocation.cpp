@@ -1,50 +1,32 @@
+#include <cmath>
+
 #include "GPSLocation.h"
 
 #include "EndianTranslation.h"
 
 GPSLocation::Float32::NetworkView GPSLocation::Float32::Pack() {
-  float nLocal = n;
-  GPSLocation::Float32::NetworkView view = { 0, 0 };
-  bool negative = false;
+  GPSLocation::Float32::NetworkView view = { 0, 0, 0 };
+  view.negative = n < 0 ? -1 : 1;
+  float nLocal = n * view.negative;  
   
-  if(n < 0) {
-    negative = true;
-    nLocal *= -1;
-  }
+  static constexpr float UINT32_MAX_LOG10 = log10(UINT32_MAX);
+  view.exponent = ceil(log10(nLocal) - UINT32_MAX_LOG10);
 
-  while(nLocal >= 10) {
-    nLocal /= 10;
-    view.E++;
-  }
+  nLocal *= pow(10.0, -view.exponent);
   
-  while(nLocal < 1) {
-    nLocal *= 10;
-    view.E--;
-  }
-  
-  if(negative) {
-    nLocal *= -1;
-  }
-  
-  view.n = htonl(static_cast<int32_t>(nLocal));
-  view.E = htonl(view.E);
+  view.digits = htonl(static_cast<uint32_t>(nLocal));
+  view.exponent = htons(view.exponent);
 
   return view;
 }
 
 GPSLocation::Float32& GPSLocation::Float32::Unpack(GPSLocation::Float32::NetworkView view) {
-  n = ntohl(view.n);
-  int32_t eLocal = ntohl(view.E);
+  n = ntohl(view.digits);
+  n *= view.negative;
+  
+  view.exponent = ntohs(view.exponent);
 
-  while (eLocal > 0) {
-    n *= 10;
-    eLocal--;
-  }
-
-  while (eLocal < 0) {
-    n /= 10;
-    eLocal++;
-  }
+  n *= pow(10.0, view.exponent);
   
   return *this;
 }
